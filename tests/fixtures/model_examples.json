@@ -1,0 +1,164 @@
+{
+  "source": "https://openid.net/specs/authorization-api-1_0.html",
+  "examples": [
+    {
+      "name": "subject_minimal",
+      "model": "Subject",
+      "payload": {
+        "type": "user",
+        "id": "alice@example.com"
+      }
+    },
+    {
+      "name": "subject_department",
+      "model": "Subject",
+      "payload": {
+        "type": "user",
+        "id": "alice@example.com",
+        "properties": {
+          "department": "Sales"
+        }
+      }
+    },
+    {
+      "name": "subject_device",
+      "model": "Subject",
+      "payload": {
+        "type": "user",
+        "id": "alice@example.com",
+        "properties": {
+          "ip_address": "172.217.22.14",
+          "device_id": "8:65:ee:17:7e:0b"
+        }
+      }
+    },
+    {
+      "name": "resource_minimal",
+      "model": "Resource",
+      "payload": {
+        "type": "book",
+        "id": "123"
+      }
+    },
+    {
+      "name": "resource_library_record",
+      "model": "Resource",
+      "payload": {
+        "type": "book",
+        "id": "123",
+        "properties": {
+          "library_record": {
+            "title": "AuthZEN in Action",
+            "isbn": "978-0593383322"
+          }
+        }
+      }
+    },
+    {
+      "name": "action_minimal",
+      "model": "Action",
+      "payload": {
+        "name": "can_read"
+      }
+    },
+    {
+      "name": "action_loan_period",
+      "model": "Action",
+      "payload": {
+        "name": "extend-loan",
+        "properties": {
+          "period": "2W"
+        }
+      }
+    },
+    {
+      "name": "context_time",
+      "model": "Context",
+      "payload": {
+        "time": "1985-10-26T01:22-07:00"
+      }
+    },
+    {
+      "name": "context_schema",
+      "model": "Context",
+      "payload": {
+        "time": "1985-10-26T01:22-07:00",
+        "schema": "https://schema.example.com/access-request.schema.json"
+      }
+    },
+    {
+      "name": "decision_allow",
+      "model": "Decision",
+      "payload": {
+        "decision": true
+      }
+    },
+    {
+      "name": "decision_reasons",
+      "model": "EvaluationResponse",
+      "payload": {
+        "decision": false,
+        "context": {
+          "reason_admin": {
+            "403": "Request failed policy C076E82F"
+          },
+          "reason_user": {
+            "403": "Insufficient privileges. Contact your administrator"
+          }
+        }
+      }
+    },
+    {
+      "name": "decision_environment",
+      "model": "EvaluationResponse",
+      "payload": {
+        "decision": false,
+        "context": {
+          "metadata": {
+            "response_time": 60,
+            "response_time_unit": "ms"
+          },
+          "environment": {
+            "ip": "10.10.0.1",
+            "datetime": "2025-06-27T18:03-07:00",
+            "os": "ubuntu24.04.2LTS-AMDx64"
+          }
+        }
+      }
+    },
+    {
+      "name": "decision_step_up",
+      "model": "EvaluationResponse",
+      "payload": {
+        "decision": false,
+        "context": {
+          "acr_values": "urn:com:example:loa:3",
+          "amr_values": "mfa hwk"
+        }
+      }
+    },
+    {
+      "name": "evaluation_request",
+      "model": "EvaluationRequest",
+      "payload": {
+        "subject": {
+          "type": "user",
+          "id": "alice@example.com"
+        },
+        "resource": {
+          "type": "account",
+          "id": "123"
+        },
+        "action": {
+          "name": "can_read",
+          "properties": {
+            "method": "GET"
+          }
+        },
+        "context": {
+          "time": "1985-10-26T01:22-07:00"
+        }
+      }
+    }
+  ]
+}
