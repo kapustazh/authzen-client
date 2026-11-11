@@ -8,13 +8,13 @@ class AuthZENError(Exception):
 
 
 class TransportError(AuthZENError):
-    """The evaluation request failed at the HTTP transport layer."""
+    """A request to the PDP or token service failed at the HTTP transport layer."""
 
 
 class ProtocolError(AuthZENError):
-    """The PDP returned an HTTP error or an invalid AuthZEN response.
+    """An HTTP or response error from the PDP or token service.
 
-    The HTTP response is available through ``response`` when decoding succeeds.
+    The ``response`` attribute contains the HTTP response when available.
     """
 
     def __init__(self, message: str, *, response: httpx.Response | None = None) -> None:

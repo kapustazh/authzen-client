@@ -1,5 +1,6 @@
 """Synchronous HTTPS client for AuthZEN single access evaluations."""
 
+from collections.abc import Mapping
 from types import TracebackType
 from typing import Self
 
@@ -15,11 +16,18 @@ class AuthZENClient:
 
     Args:
         base_url: HTTPS PDP base URL. Any path prefix is preserved.
+        auth: HTTPX authentication object for accessing the PDP.
+        headers: Additional request headers. Content-Type is enforced as JSON.
         transport: Optional HTTPX transport for testing or custom connections.
     """
 
     def __init__(
-        self, *, base_url: str, transport: httpx.BaseTransport | None = None
+        self,
+        *,
+        base_url: str,
+        auth: httpx.Auth | None = None,
+        headers: Mapping[str, str] | None = None,
+        transport: httpx.BaseTransport | None = None,
     ) -> None:
         try:
             url = httpx.URL(base_url)
@@ -30,18 +38,23 @@ class AuthZENClient:
                 "base_url must be an absolute HTTPS URL without a query or fragment."
             )
 
+        request_headers = httpx.Headers(headers)
+        request_headers.setdefault("Accept", "application/json")
+        request_headers["Content-Type"] = "application/json"
+
         self._http = httpx.Client(
             base_url=url,
+            auth=auth,
             transport=transport,
-            headers={"Accept": "application/json"},
+            headers=request_headers,
         )
 
     def evaluate(self, request: EvaluationRequest) -> EvaluationResponse:
         """Evaluate an access request, returning both allow and deny decisions.
 
         Raises:
-            TransportError: The HTTP request could not be completed.
-            ProtocolError: The PDP returned an HTTP error or invalid response.
+            TransportError: A PDP or token request could not be completed.
+            ProtocolError: Authentication failed or the PDP response was invalid.
         """
         payload = request.model_dump(mode="json", exclude_defaults=True)
         try:
@@ -50,6 +63,11 @@ class AuthZENClient:
             raise ProtocolError("The PDP response could not be decoded.") from exc
         except httpx.RequestError as exc:
             raise TransportError("The AuthZEN evaluation request failed.") from exc
+        except (httpx.HTTPError, ValueError, AttributeError) as exc:
+            raise ProtocolError(
+                "HTTP request or authentication failed.",
+                response=getattr(exc, "response", None),
+            ) from exc
 
         if response.status_code != 200:
             raise ProtocolError(

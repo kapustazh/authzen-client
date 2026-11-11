@@ -67,6 +67,35 @@ For a real PDP, set `base_url` and use the default transport.
 Denied access returns `decision=False`. Connection failures and timeouts raise
 `TransportError`. HTTP errors and invalid responses raise `ProtocolError`.
 
+### Authentication
+
+Pass an existing token with `headers={"Authorization": "Bearer <token>"}`, or use
+an HTTPX auth object with `auth=httpx.BasicAuth("user", "password")`.
+
+For OAuth 2.0 Client Credentials, install the `oauth` extra and pass an
+`httpx_auth.OAuth2ClientCredentials` object as `auth`. It obtains and
+caches access tokens, requesting a new token when the cached one approaches expiry.
+Use an HTTPS token endpoint. For opaque tokens, the provider must supply
+`expires_in` for this integration.
+
+```python
+from httpx_auth import OAuth2ClientCredentials
+
+auth = OAuth2ClientCredentials(
+    token_url="https://issuer.example.com/token",
+    client_id="client-id",
+    client_secret="client-secret",
+    scope="authzen:evaluate",
+)
+```
+
+Run the OAuth example with stubbed token and PDP endpoints. It prints `True`.
+
+```bash
+uv sync --extra oauth
+uv run --extra oauth python examples/oauth.py
+```
+
 ### Development
 
 ```bash

@@ -13,8 +13,14 @@ dependencies = [
     "pydantic>=2,<3",
 ]
 
+[project.optional-dependencies]
+oauth = [
+    "httpx-auth>=0.23.1,<1",
+]
+
 [dependency-groups]
 dev = [
+    "httpx-auth>=0.23.1,<1",
     "mypy>=1.15,<3",
     "pytest>=8,<10",
     "ruff>=0.15,<1",

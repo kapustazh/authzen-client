@@ -185,3 +185,68 @@ def test_explicit_close_closes_transport() -> None:
 def test_invalid_base_url_is_rejected(base_url: str) -> None:
     with pytest.raises(ValueError, match="base_url"):
         AuthZENClient(base_url=base_url)
+
+
+@pytest.mark.parametrize(
+    ("header", "credential"),
+    [("Authorization", "Bearer demo-token"), ("X-API-Key", "demo-key")],
+)
+def test_credential_headers_are_forwarded(
+    evaluation_request: EvaluationRequest, header: str, credential: str
+) -> None:
+    headers = {header: credential, "content-type": "text/plain"}
+    original = headers.copy()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.headers[header] == credential
+        assert request.headers["content-type"] == "application/json"
+        assert request.headers["accept"] == "application/json"
+        assert json.loads(request.content) == REQUEST_PAYLOAD
+        return httpx.Response(200, json={"decision": True})
+
+    with AuthZENClient(
+        base_url="https://pdp.example.com",
+        headers=headers,
+        transport=httpx.MockTransport(handler),
+    ) as client:
+        assert client.evaluate(evaluation_request).decision is True
+
+    assert headers == original
+
+
+def test_httpx_auth_is_used(evaluation_request: EvaluationRequest) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.headers["authorization"] == "Basic Y2xpZW50OnNlY3JldA=="
+        return httpx.Response(200, json={"decision": True})
+
+    with AuthZENClient(
+        base_url="https://pdp.example.com",
+        auth=httpx.BasicAuth("client", "secret"),
+        transport=httpx.MockTransport(handler),
+    ) as client:
+        assert client.evaluate(evaluation_request).decision is True
+
+
+def test_rejected_credentials_raise_protocol_error(
+    evaluation_request: EvaluationRequest,
+) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.headers["authorization"] == "Bearer invalid-token"
+        return httpx.Response(
+            401,
+            headers={"WWW-Authenticate": "Bearer"},
+            text="Invalid credentials",
+        )
+
+    with (
+        AuthZENClient(
+            base_url="https://pdp.example.com",
+            headers={"Authorization": "Bearer invalid-token"},
+            transport=httpx.MockTransport(handler),
+        ) as client,
+        pytest.raises(ProtocolError) as error,
+    ):
+        client.evaluate(evaluation_request)
+
+    assert error.value.response is not None
+    assert error.value.response.status_code == 401
