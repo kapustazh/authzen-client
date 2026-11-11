@@ -13,6 +13,17 @@ from authzen_client import (
 
 def stub_pdp(request: httpx.Request) -> httpx.Response:
     """Allow Alice to read document 123 using a fixed demonstration policy."""
+    if (
+        request.method == "GET"
+        and request.url.path == "/.well-known/authzen-configuration"
+    ):
+        return httpx.Response(
+            200,
+            json={
+                "policy_decision_point": "https://pdp.example.com",
+                "access_evaluation_endpoint": "https://pdp.example.com/access/v1/evaluation",
+            },
+        )
     if request.method != "POST" or request.url.path != "/access/v1/evaluation":
         return httpx.Response(404, text="Unknown endpoint")
 
@@ -33,6 +44,7 @@ def main() -> None:
         base_url="https://pdp.example.com",
         transport=httpx.MockTransport(stub_pdp),
     ) as client:
+        client.discover()
         for subject_id in ("alice", "bob"):
             request = EvaluationRequest(
                 subject=Subject(type="user", id=subject_id),

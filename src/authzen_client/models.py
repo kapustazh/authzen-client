@@ -5,7 +5,15 @@ Optional objects default to empty objects. Use ``exclude_defaults=True`` when
 dumping to omit them.
 """
 
-from pydantic import BaseModel, ConfigDict, Field, RootModel
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    HttpUrl,
+    RootModel,
+    ValidationInfo,
+    field_validator,
+)
 
 from authzen_client.types import JsonObject
 
@@ -80,3 +88,22 @@ class Decision(BaseModel):
 
 # The single-evaluation response has the same structure as a Decision.
 EvaluationResponse = Decision
+
+
+class PDPMetadata(BaseModel):
+    """Unsigned PDP metadata for locating the single-evaluation endpoint."""
+
+    model_config = _MODEL_CONFIG
+
+    policy_decision_point: str
+    access_evaluation_endpoint: str
+
+    @field_validator("policy_decision_point", "access_evaluation_endpoint")
+    @classmethod
+    def https_url(cls, value: str, info: ValidationInfo) -> str:
+        url = HttpUrl(value)
+        if url.scheme != "https" or url.fragment:
+            raise ValueError("PDP metadata URLs must use HTTPS without a fragment.")
+        if info.field_name == "policy_decision_point" and url.query:
+            raise ValueError("The PDP identifier must not contain a query.")
+        return value
