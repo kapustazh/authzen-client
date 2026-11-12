@@ -3,14 +3,12 @@
 ## Description
 
 A typed Python client for the [AuthZEN Authorization API](https://openid.net/specs/authorization-api-1_0.html).
-PEP-side SDK for requesting authorization decisions from a PDP.
+Ask a PDP whether a subject can perform an action on a resource. Supports sync
+and async evaluation, discovery, and authentication.
 
 ## Instructions
 
 Requires Python 3.12+ and [uv](https://docs.astral.sh/uv/getting-started/installation/).
-The local development environment uses Python 3.13, as specified in .python-version.
-
-Clone the repository and install runtime and development dependencies.
 
 ```bash
 git clone https://github.com/kapustazh/authzen-client.git
@@ -20,20 +18,18 @@ uv sync
 
 ### Example usage
 
-Run the bundled example from the repository root.
+From the repository root, run the example against the bundled Stub-PDP.
 
 ```bash
 uv run python examples/evaluate.py
 ```
-
-Expected output is shown below.
 
 ```text
 alice: decision=True
 bob: decision=False
 ```
 
-The bundled Stub-PDP handles requests through HTTPX MockTransport.
+The client is used as follows. HTTPX MockTransport connects it to the Stub-PDP.
 
 ```python
 import httpx
@@ -57,55 +53,40 @@ with AuthZENClient(
     base_url="https://pdp.example.com",
     transport=httpx.MockTransport(stub_pdp),
 ) as client:
+    client.discover()
     response = client.evaluate(request)
 
 print(response.decision)  # True
 ```
 
-For a real PDP, set base_url and use the default transport.
+For a real PDP, supply its HTTPS base_url and omit transport.
 
-Denied access returns decision=False. Connection failures and timeouts raise
-TransportError. HTTP errors and invalid responses raise ProtocolError.
+A denial returns decision=False. Network failures raise TransportError, while
+HTTP errors and invalid responses raise ProtocolError.
 
 ### Async usage
 
-Use AsyncAuthZENClient with async with and await client.evaluate(request).
-Run the bundled async example with the same output as the synchronous example.
+Use AsyncAuthZENClient with async with, and await its methods.
 
 ```bash
 uv run python examples/async_evaluate.py
 ```
 
-### Discovery
-
-Call client.discover() to load the PDP evaluation endpoint. With the async
-client, use await client.discover().
+Both clients support discover() to load the PDP evaluation endpoint. This step
+is optional when the PDP uses the default path, /access/v1/evaluation.
 
 ### Authentication
 
-Pass credentials through headers or an HTTPX auth object through auth.
-
-For OAuth Client Credentials, install the oauth extra and pass this auth object
-to the synchronous client. Use an HTTPS token endpoint. Opaque token responses
-must include expires_in.
-
-```python
-from httpx_auth import OAuth2ClientCredentials
-
-auth = OAuth2ClientCredentials(
-    token_url="https://issuer.example.com/token",
-    client_id="client-id",
-    client_secret="client-secret",
-    scope="authzen:evaluate",
-)
-```
-
-Run the OAuth example with stubbed token and PDP endpoints. It prints True.
+Use headers for Bearer tokens and API keys, or auth for an HTTPX auth object.
+The OAuth Client Credentials example uses httpx-auth and prints True.
 
 ```bash
 uv sync --extra oauth
 uv run --extra oauth python examples/oauth.py
 ```
+
+OAuth token requests are synchronous and require an HTTPS endpoint. Opaque token
+responses must include expires_in.
 
 ### Development
 
@@ -115,6 +96,19 @@ uv run ruff check src tests examples
 uv run ruff format --check src tests examples
 uv run mypy src tests examples
 ```
+
+### Build
+
+Build the wheel and source distribution into dist/.
+
+```bash
+uv build
+```
+
+### Development notes
+
+I spent approximately 4–5 hours on the task. With more time, I would add batch
+evaluations and paginated search.
 
 ## License
 
