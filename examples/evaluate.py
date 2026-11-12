@@ -21,9 +21,12 @@ def stub_pdp(request: httpx.Request) -> httpx.Response:
             200,
             json={
                 "policy_decision_point": "https://pdp.example.com",
-                "access_evaluation_endpoint": "https://pdp.example.com/access/v1/evaluation",
+                "access_evaluation_endpoint": (
+                    "https://pdp.example.com/access/v1/evaluation"
+                ),
             },
         )
+
     if request.method != "POST" or request.url.path != "/access/v1/evaluation":
         return httpx.Response(404, text="Unknown endpoint")
 
