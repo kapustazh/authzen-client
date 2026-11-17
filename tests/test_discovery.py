@@ -1,4 +1,4 @@
-import httpx
+import httpx2
 import pytest
 
 from authzen_client import (
@@ -36,13 +36,14 @@ def test_discovery_selects_endpoint(
     identifier = "https://pdp.example.com" + path
     calls: list[str] = []
 
-    def handler(request: httpx.Request) -> httpx.Response:
+    def handler(request: httpx2.Request) -> httpx2.Response:
         calls.append(request.method)
         if request.method == "GET":
+            assert "content-type" not in request.headers
             assert str(request.url) == (
                 "https://pdp.example.com/.well-known/authzen-configuration" + path
             )
-            return httpx.Response(
+            return httpx2.Response(
                 200,
                 json={
                     "policy_decision_point": identifier,
@@ -51,10 +52,10 @@ def test_discovery_selects_endpoint(
                 },
             )
         assert str(request.url) == ENDPOINT
-        return httpx.Response(200, json={"decision": False})
+        return httpx2.Response(200, json={"decision": False})
 
     with AuthZENClient(
-        base_url=identifier, transport=httpx.MockTransport(handler)
+        base_url=identifier, transport=httpx2.MockTransport(handler)
     ) as client:
         metadata = client.discover()
         response = client.evaluate(evaluation_request)
@@ -86,11 +87,11 @@ def test_discovery_selects_endpoint(
     ],
 )
 def test_invalid_metadata_is_rejected(payload: object) -> None:
-    response = httpx.Response(200, json=payload)
+    response = httpx2.Response(200, json=payload)
     with (
         AuthZENClient(
             base_url="https://pdp.example.com",
-            transport=httpx.MockTransport(lambda request: response),
+            transport=httpx2.MockTransport(lambda request: response),
         ) as client,
         pytest.raises(ProtocolError) as error,
     ):
@@ -102,23 +103,25 @@ def test_invalid_metadata_is_rejected(payload: object) -> None:
 @pytest.mark.parametrize(
     "response",
     [
-        httpx.Response(404),
-        httpx.Response(200, text="not JSON"),
-        httpx.Response(200, content=b"{", headers={"Content-Type": "application/json"}),
+        httpx2.Response(404),
+        httpx2.Response(200, text="not JSON"),
+        httpx2.Response(
+            200, content=b"{", headers={"Content-Type": "application/json"}
+        ),
     ],
 )
 def test_failed_discovery_keeps_default_endpoint(
-    evaluation_request: EvaluationRequest, response: httpx.Response
+    evaluation_request: EvaluationRequest, response: httpx2.Response
 ) -> None:
-    def handler(request: httpx.Request) -> httpx.Response:
+    def handler(request: httpx2.Request) -> httpx2.Response:
         if request.method == "GET":
             return response
         assert request.url.path == "/tenant/access/v1/evaluation"
-        return httpx.Response(200, json={"decision": True})
+        return httpx2.Response(200, json={"decision": True})
 
     with AuthZENClient(
         base_url="https://pdp.example.com/tenant",
-        transport=httpx.MockTransport(handler),
+        transport=httpx2.MockTransport(handler),
     ) as client:
         with pytest.raises(ProtocolError):
             client.discover()
@@ -126,14 +129,14 @@ def test_failed_discovery_keeps_default_endpoint(
 
 
 def test_metadata_transport_failure() -> None:
-    failure = httpx.ConnectTimeout("PDP unavailable")
+    failure = httpx2.ConnectTimeout("PDP unavailable")
 
-    def handler(request: httpx.Request) -> httpx.Response:
+    def handler(request: httpx2.Request) -> httpx2.Response:
         raise failure
 
     with (
         AuthZENClient(
-            base_url="https://pdp.example.com", transport=httpx.MockTransport(handler)
+            base_url="https://pdp.example.com", transport=httpx2.MockTransport(handler)
         ) as client,
         pytest.raises(TransportError) as error,
     ):
@@ -144,10 +147,10 @@ def test_metadata_transport_failure() -> None:
 
 @pytest.mark.anyio
 async def test_async_discovery(evaluation_request: EvaluationRequest) -> None:
-    async def handler(request: httpx.Request) -> httpx.Response:
+    async def handler(request: httpx2.Request) -> httpx2.Response:
         if request.method == "GET":
             assert request.url.path == "/.well-known/authzen-configuration/tenant"
-            return httpx.Response(
+            return httpx2.Response(
                 200,
                 json={
                     "policy_decision_point": "https://pdp.example.com/tenant",
@@ -155,11 +158,11 @@ async def test_async_discovery(evaluation_request: EvaluationRequest) -> None:
                 },
             )
         assert str(request.url) == ENDPOINT
-        return httpx.Response(200, json={"decision": True})
+        return httpx2.Response(200, json={"decision": True})
 
     async with AsyncAuthZENClient(
         base_url="https://pdp.example.com/tenant",
-        transport=httpx.MockTransport(handler),
+        transport=httpx2.MockTransport(handler),
     ) as client:
         metadata = await client.discover()
         response = await client.evaluate(evaluation_request)
@@ -170,7 +173,7 @@ async def test_async_discovery(evaluation_request: EvaluationRequest) -> None:
 
 @pytest.mark.anyio
 async def test_async_discovery_rejects_identifier_mismatch() -> None:
-    response = httpx.Response(
+    response = httpx2.Response(
         200,
         json={
             "policy_decision_point": "https://other.example.com",
@@ -179,7 +182,7 @@ async def test_async_discovery_rejects_identifier_mismatch() -> None:
     )
     async with AsyncAuthZENClient(
         base_url="https://pdp.example.com",
-        transport=httpx.MockTransport(lambda request: response),
+        transport=httpx2.MockTransport(lambda request: response),
     ) as client:
         with pytest.raises(ProtocolError) as error:
             await client.discover()

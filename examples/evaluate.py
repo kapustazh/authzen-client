@@ -1,61 +1,31 @@
-"""Run the client against an in-process Stub-PDP."""
+"""Check document access before returning content to an application user."""
 
-import httpx
+import httpx2
 
-from authzen_client import (
-    Action,
-    AuthZENClient,
-    EvaluationRequest,
-    Resource,
-    Subject,
-)
+from authzen_client import AuthZENClient
+from examples.stub_pdp import DOCUMENTS, make_request, stub_pdp
 
 
-def stub_pdp(request: httpx.Request) -> httpx.Response:
-    """Allow Alice to read document 123 using a fixed demonstration policy."""
-    if (
-        request.method == "GET"
-        and request.url.path == "/.well-known/authzen-configuration"
-    ):
-        return httpx.Response(
-            200,
-            json={
-                "policy_decision_point": "https://pdp.example.com",
-                "access_evaluation_endpoint": (
-                    "https://pdp.example.com/access/v1/evaluation"
-                ),
-            },
-        )
-
-    if request.method != "POST" or request.url.path != "/access/v1/evaluation":
-        return httpx.Response(404, text="Unknown endpoint")
-
-    evaluation = EvaluationRequest.model_validate_json(request.content)
-    allowed = (
-        evaluation.subject.type == "user"
-        and evaluation.subject.id == "alice"
-        and evaluation.action.name == "read"
-        and evaluation.resource.type == "document"
-        and evaluation.resource.id == "123"
-    )
-    return httpx.Response(200, json={"decision": allowed})
+def read_document(client: AuthZENClient, subject_id: str, document_id: str) -> str:
+    """Enforce the PDP decision before returning a document."""
+    response = client.evaluate(make_request(subject_id, document_id))
+    if not response.decision:
+        raise PermissionError("Document access denied")
+    return DOCUMENTS[document_id]
 
 
 def main() -> None:
-    """Print an allow and a deny decision from the Stub-PDP."""
+    """Read the same document as an allowed and a denied user."""
     with AuthZENClient(
-        base_url="https://pdp.example.com",
-        transport=httpx.MockTransport(stub_pdp),
+        base_url="https://pdp.example.com", transport=httpx2.MockTransport(stub_pdp)
     ) as client:
         client.discover()
         for subject_id in ("alice", "bob"):
-            request = EvaluationRequest(
-                subject=Subject(type="user", id=subject_id),
-                action=Action(name="read"),
-                resource=Resource(type="document", id="123"),
-            )
-            response = client.evaluate(request)
-            print(f"{subject_id}: decision={response.decision}")
+            try:
+                content = read_document(client, subject_id, "123")
+                print(f"{subject_id}: {content}")
+            except PermissionError:
+                print(f"{subject_id}: access denied")
 
 
 if __name__ == "__main__":

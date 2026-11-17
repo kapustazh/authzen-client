@@ -2,7 +2,7 @@ import asyncio
 import json
 from unittest.mock import patch
 
-import httpx
+import httpx2
 import pytest
 
 from authzen_client import (
@@ -35,7 +35,7 @@ def evaluation_request() -> EvaluationRequest:
 async def test_async_evaluation(
     evaluation_request: EvaluationRequest, decision: bool
 ) -> None:
-    async def handler(request: httpx.Request) -> httpx.Response:
+    async def handler(request: httpx2.Request) -> httpx2.Response:
         assert request.method == "POST"
         assert request.url == "https://pdp.example.com/tenant/access/v1/evaluation"
         assert request.headers["authorization"] == "Bearer demo-token"
@@ -44,14 +44,14 @@ async def test_async_evaluation(
         assert json.loads(request.content) == evaluation_request.model_dump(
             mode="json", exclude_defaults=True
         )
-        return httpx.Response(
+        return httpx2.Response(
             200, json={"decision": decision, "context": {"reason": "demo"}}
         )
 
     async with AsyncAuthZENClient(
         base_url="https://pdp.example.com/tenant",
         headers={"Authorization": "Bearer demo-token", "content-type": "text/plain"},
-        transport=httpx.MockTransport(handler),
+        transport=httpx2.MockTransport(handler),
     ) as client:
         response = await client.evaluate(evaluation_request)
 
@@ -62,17 +62,17 @@ async def test_async_evaluation(
 @pytest.mark.parametrize(
     "response",
     [
-        httpx.Response(403, json={"decision": False}),
-        httpx.Response(200, text="wrong content type"),
-        httpx.Response(200, json={"decision": "false"}),
+        httpx2.Response(403, json={"decision": False}),
+        httpx2.Response(200, text="wrong content type"),
+        httpx2.Response(200, json={"decision": "false"}),
     ],
 )
 async def test_async_protocol_errors(
-    evaluation_request: EvaluationRequest, response: httpx.Response
+    evaluation_request: EvaluationRequest, response: httpx2.Response
 ) -> None:
     async with AsyncAuthZENClient(
         base_url="https://pdp.example.com",
-        transport=httpx.MockTransport(lambda request: response),
+        transport=httpx2.MockTransport(lambda request: response),
     ) as client:
         with pytest.raises(ProtocolError) as error:
             await client.evaluate(evaluation_request)
@@ -81,13 +81,13 @@ async def test_async_protocol_errors(
 
 
 async def test_async_transport_error(evaluation_request: EvaluationRequest) -> None:
-    failure = httpx.ReadTimeout("PDP unavailable")
+    failure = httpx2.ReadTimeout("PDP unavailable")
 
-    async def handler(request: httpx.Request) -> httpx.Response:
+    async def handler(request: httpx2.Request) -> httpx2.Response:
         raise failure
 
     async with AsyncAuthZENClient(
-        base_url="https://pdp.example.com", transport=httpx.MockTransport(handler)
+        base_url="https://pdp.example.com", transport=httpx2.MockTransport(handler)
     ) as client:
         with pytest.raises(TransportError) as error:
             await client.evaluate(evaluation_request)
@@ -96,20 +96,20 @@ async def test_async_transport_error(evaluation_request: EvaluationRequest) -> N
 
 
 async def test_async_auth_object(evaluation_request: EvaluationRequest) -> None:
-    async def handler(request: httpx.Request) -> httpx.Response:
+    async def handler(request: httpx2.Request) -> httpx2.Response:
         assert request.headers["authorization"] == "Basic Y2xpZW50OnNlY3JldA=="
-        return httpx.Response(200, json={"decision": True})
+        return httpx2.Response(200, json={"decision": True})
 
     async with AsyncAuthZENClient(
         base_url="https://pdp.example.com",
-        auth=httpx.BasicAuth("client", "secret"),
-        transport=httpx.MockTransport(handler),
+        auth=httpx2.BasicAuth("client", "secret"),
+        transport=httpx2.MockTransport(handler),
     ) as client:
         assert (await client.evaluate(evaluation_request)).decision is True
 
 
 async def test_async_context_manager_closes_transport_on_error() -> None:
-    transport = httpx.MockTransport(lambda request: httpx.Response(200))
+    transport = httpx2.MockTransport(lambda request: httpx2.Response(200))
 
     with patch.object(transport, "aclose") as close:
         with pytest.raises(RuntimeError, match="application failed"):
@@ -122,7 +122,7 @@ async def test_async_context_manager_closes_transport_on_error() -> None:
 
 
 async def test_explicit_aclose_closes_transport() -> None:
-    transport = httpx.MockTransport(lambda request: httpx.Response(200))
+    transport = httpx2.MockTransport(lambda request: httpx2.Response(200))
     client = AsyncAuthZENClient(base_url="https://pdp.example.com", transport=transport)
 
     with patch.object(transport, "aclose") as close:
@@ -136,16 +136,16 @@ async def test_evaluations_can_run_concurrently(
     ready = asyncio.Event()
     started = 0
 
-    async def handler(request: httpx.Request) -> httpx.Response:
+    async def handler(request: httpx2.Request) -> httpx2.Response:
         nonlocal started
         started += 1
         if started == 2:
             ready.set()
         await ready.wait()
-        return httpx.Response(200, json={"decision": True})
+        return httpx2.Response(200, json={"decision": True})
 
     async with AsyncAuthZENClient(
-        base_url="https://pdp.example.com", transport=httpx.MockTransport(handler)
+        base_url="https://pdp.example.com", transport=httpx2.MockTransport(handler)
     ) as client:
         results = await asyncio.wait_for(
             asyncio.gather(

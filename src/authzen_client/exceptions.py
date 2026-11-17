@@ -1,6 +1,6 @@
 """Errors raised while communicating with an AuthZEN PDP."""
 
-import httpx
+import httpx2
 
 
 class AuthZENError(Exception):
@@ -17,6 +17,8 @@ class ProtocolError(AuthZENError):
     The ``response`` attribute contains the HTTP response when available.
     """
 
-    def __init__(self, message: str, *, response: httpx.Response | None = None) -> None:
+    def __init__(
+        self, message: str, *, response: httpx2.Response | None = None
+    ) -> None:
         self.response = response
         super().__init__(message)

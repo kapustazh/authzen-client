@@ -1,7 +1,7 @@
 import json
 from unittest.mock import patch
 
-import httpx
+import httpx2
 import pytest
 
 from authzen_client import (
@@ -38,20 +38,20 @@ def test_evaluation_request_and_response(
     expected_path: str,
     decision: bool,
 ) -> None:
-    def handler(request: httpx.Request) -> httpx.Response:
+    def handler(request: httpx2.Request) -> httpx2.Response:
         assert request.method == "POST"
         assert request.url == f"https://pdp.example.com{expected_path}"
         assert request.headers["content-type"] == "application/json"
         assert request.headers["accept"] == "application/json"
         assert json.loads(request.content) == REQUEST_PAYLOAD
-        return httpx.Response(
+        return httpx2.Response(
             200,
             headers={"Content-Type": "application/json; charset=utf-8"},
             json={"decision": decision, "context": {"reason": "policy evaluation"}},
         )
 
     with AuthZENClient(
-        base_url=base_url, transport=httpx.MockTransport(handler)
+        base_url=base_url, transport=httpx2.MockTransport(handler)
     ) as client:
         response = client.evaluate(evaluation_request)
 
@@ -63,12 +63,12 @@ def test_evaluation_request_and_response(
 def test_non_200_status_is_a_protocol_error(
     evaluation_request: EvaluationRequest, status: int
 ) -> None:
-    response = httpx.Response(
+    response = httpx2.Response(
         status,
         headers={"Location": "https://other.example.com"},
         json={"decision": False},
     )
-    transport = httpx.MockTransport(lambda request: response)
+    transport = httpx2.MockTransport(lambda request: response)
 
     with (
         AuthZENClient(
@@ -95,8 +95,8 @@ def test_non_200_status_is_a_protocol_error(
 def test_invalid_response_is_a_protocol_error(
     evaluation_request: EvaluationRequest, headers: dict[str, str], body: bytes
 ) -> None:
-    response = httpx.Response(200, headers=headers, content=body)
-    transport = httpx.MockTransport(lambda request: response)
+    response = httpx2.Response(200, headers=headers, content=body)
+    transport = httpx2.MockTransport(lambda request: response)
 
     with (
         AuthZENClient(
@@ -109,18 +109,18 @@ def test_invalid_response_is_a_protocol_error(
     assert error.value.response is response
 
 
-@pytest.mark.parametrize("error_type", [httpx.ConnectError, httpx.ReadTimeout])
+@pytest.mark.parametrize("error_type", [httpx2.ConnectError, httpx2.ReadTimeout])
 def test_transport_failure_preserves_its_cause(
-    evaluation_request: EvaluationRequest, error_type: type[httpx.RequestError]
+    evaluation_request: EvaluationRequest, error_type: type[httpx2.RequestError]
 ) -> None:
     failure = error_type("PDP unavailable")
 
-    def handler(request: httpx.Request) -> httpx.Response:
+    def handler(request: httpx2.Request) -> httpx2.Response:
         raise failure
 
     with (
         AuthZENClient(
-            base_url="https://pdp.example.com", transport=httpx.MockTransport(handler)
+            base_url="https://pdp.example.com", transport=httpx2.MockTransport(handler)
         ) as client,
         pytest.raises(TransportError) as error,
     ):
@@ -132,8 +132,8 @@ def test_transport_failure_preserves_its_cause(
 def test_invalid_content_encoding_is_a_protocol_error(
     evaluation_request: EvaluationRequest,
 ) -> None:
-    def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(
             200,
             headers={"Content-Type": "application/json", "Content-Encoding": "gzip"},
             content=b"invalid compressed data",
@@ -141,17 +141,17 @@ def test_invalid_content_encoding_is_a_protocol_error(
 
     with (
         AuthZENClient(
-            base_url="https://pdp.example.com", transport=httpx.MockTransport(handler)
+            base_url="https://pdp.example.com", transport=httpx2.MockTransport(handler)
         ) as client,
         pytest.raises(ProtocolError) as error,
     ):
         client.evaluate(evaluation_request)
 
-    assert isinstance(error.value.__cause__, httpx.DecodingError)
+    assert isinstance(error.value.__cause__, httpx2.DecodingError)
 
 
 def test_context_manager_closes_transport_on_error() -> None:
-    transport = httpx.MockTransport(lambda request: httpx.Response(200))
+    transport = httpx2.MockTransport(lambda request: httpx2.Response(200))
 
     with patch.object(transport, "close") as close:
         with (
@@ -164,7 +164,7 @@ def test_context_manager_closes_transport_on_error() -> None:
 
 
 def test_explicit_close_closes_transport() -> None:
-    transport = httpx.MockTransport(lambda request: httpx.Response(200))
+    transport = httpx2.MockTransport(lambda request: httpx2.Response(200))
     client = AuthZENClient(base_url="https://pdp.example.com", transport=transport)
 
     with patch.object(transport, "close") as close:
@@ -197,17 +197,17 @@ def test_credential_headers_are_forwarded(
     headers = {header: credential, "content-type": "text/plain"}
     original = headers.copy()
 
-    def handler(request: httpx.Request) -> httpx.Response:
+    def handler(request: httpx2.Request) -> httpx2.Response:
         assert request.headers[header] == credential
         assert request.headers["content-type"] == "application/json"
         assert request.headers["accept"] == "application/json"
         assert json.loads(request.content) == REQUEST_PAYLOAD
-        return httpx.Response(200, json={"decision": True})
+        return httpx2.Response(200, json={"decision": True})
 
     with AuthZENClient(
         base_url="https://pdp.example.com",
         headers=headers,
-        transport=httpx.MockTransport(handler),
+        transport=httpx2.MockTransport(handler),
     ) as client:
         assert client.evaluate(evaluation_request).decision is True
 
@@ -215,14 +215,14 @@ def test_credential_headers_are_forwarded(
 
 
 def test_httpx_auth_is_used(evaluation_request: EvaluationRequest) -> None:
-    def handler(request: httpx.Request) -> httpx.Response:
+    def handler(request: httpx2.Request) -> httpx2.Response:
         assert request.headers["authorization"] == "Basic Y2xpZW50OnNlY3JldA=="
-        return httpx.Response(200, json={"decision": True})
+        return httpx2.Response(200, json={"decision": True})
 
     with AuthZENClient(
         base_url="https://pdp.example.com",
-        auth=httpx.BasicAuth("client", "secret"),
-        transport=httpx.MockTransport(handler),
+        auth=httpx2.BasicAuth("client", "secret"),
+        transport=httpx2.MockTransport(handler),
     ) as client:
         assert client.evaluate(evaluation_request).decision is True
 
@@ -230,9 +230,9 @@ def test_httpx_auth_is_used(evaluation_request: EvaluationRequest) -> None:
 def test_rejected_credentials_raise_protocol_error(
     evaluation_request: EvaluationRequest,
 ) -> None:
-    def handler(request: httpx.Request) -> httpx.Response:
+    def handler(request: httpx2.Request) -> httpx2.Response:
         assert request.headers["authorization"] == "Bearer invalid-token"
-        return httpx.Response(
+        return httpx2.Response(
             401,
             headers={"WWW-Authenticate": "Bearer"},
             text="Invalid credentials",
@@ -242,7 +242,7 @@ def test_rejected_credentials_raise_protocol_error(
         AuthZENClient(
             base_url="https://pdp.example.com",
             headers={"Authorization": "Bearer invalid-token"},
-            transport=httpx.MockTransport(handler),
+            transport=httpx2.MockTransport(handler),
         ) as client,
         pytest.raises(ProtocolError) as error,
     ):
