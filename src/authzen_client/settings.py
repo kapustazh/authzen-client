@@ -10,6 +10,10 @@ class Endpoints(BaseModel):
     model_config = ConfigDict(strict=True, frozen=True, extra="forbid")
 
     evaluation: str = "/access/v1/evaluation"
+    evaluations: str = "/access/v1/evaluations"
+    subjects: str = "/access/v1/search/subject"
+    resources: str = "/access/v1/search/resource"
+    actions: str = "/access/v1/search/action"
 
     @field_validator("*")
     @classmethod

@@ -1,6 +1,6 @@
 """Request AuthZEN decisions using asynchronous HTTPS."""
 
-from collections.abc import Mapping
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from types import TracebackType
 from typing import Self
 
@@ -9,14 +9,29 @@ from pydantic import BaseModel
 
 from authzen_client._client import (
     Endpoint,
+    _batch_response,
     _ClientBase,
+    _next_request,
     _request_errors,
     _response_model,
 )
 from authzen_client.models import (
+    Action,
+    ActionSearchRequest,
+    ActionSearchResponse,
     EvaluationRequest,
     EvaluationResponse,
+    EvaluationsRequest,
+    EvaluationsResponse,
     PDPMetadata,
+    Resource,
+    ResourceSearchRequest,
+    ResourceSearchResponse,
+    SearchRequest,
+    SearchResponse,
+    Subject,
+    SubjectSearchRequest,
+    SubjectSearchResponse,
 )
 from authzen_client.settings import Endpoints
 
@@ -89,6 +104,61 @@ class AsyncAuthZENClient(_ClientBase):
         return _response_model(
             await self._post("evaluation", request), EvaluationResponse
         )
+
+    async def evaluate_batch(self, request: EvaluationsRequest) -> EvaluationsResponse:
+        """Return ordered batch decisions using the requested execution semantics."""
+        response = await self._post("evaluations", request)
+        return _batch_response(response, request)
+
+    async def search_resources(
+        self, request: ResourceSearchRequest
+    ) -> ResourceSearchResponse:
+        """Fetch one page of resources permitted for the subject and action."""
+        return _response_model(
+            await self._post("resources", request), ResourceSearchResponse
+        )
+
+    async def search_subjects(
+        self, request: SubjectSearchRequest
+    ) -> SubjectSearchResponse:
+        """Fetch one page of subjects permitted for the resource and action."""
+        return _response_model(
+            await self._post("subjects", request), SubjectSearchResponse
+        )
+
+    async def search_actions(
+        self, request: ActionSearchRequest
+    ) -> ActionSearchResponse:
+        """Fetch one page of actions permitted for the subject and resource."""
+        return _response_model(
+            await self._post("actions", request), ActionSearchResponse
+        )
+
+    async def _iterate[T: SearchRequest, R: Subject | Resource | Action](
+        self,
+        request: T,
+        search: Callable[[T], Awaitable[SearchResponse[R]]],
+    ) -> AsyncIterator[R]:
+        current: T | None = request.model_copy(deep=True)
+        token = request.page.token if request.page is not None else None
+        seen = {token} if token is not None and token != "" else set()
+        while current is not None:
+            response = await search(current)
+            for result in response.results:
+                yield result
+            current = _next_request(current, response.page, seen)
+
+    def iter_resources(self, request: ResourceSearchRequest) -> AsyncIterator[Resource]:
+        """Lazily yield resources across pages without changing the input request."""
+        return self._iterate(request, self.search_resources)
+
+    def iter_subjects(self, request: SubjectSearchRequest) -> AsyncIterator[Subject]:
+        """Lazily yield subjects across pages."""
+        return self._iterate(request, self.search_subjects)
+
+    def iter_actions(self, request: ActionSearchRequest) -> AsyncIterator[Action]:
+        """Lazily yield actions across pages."""
+        return self._iterate(request, self.search_actions)
 
     async def aclose(self) -> None:
         """Close the owned HTTP client. Borrowed clients remain caller-owned."""

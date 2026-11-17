@@ -9,7 +9,14 @@ import httpx2
 from pydantic import BaseModel, ValidationError
 
 from authzen_client.exceptions import ProtocolError, TransportError
-from authzen_client.models import PDPMetadata
+from authzen_client.models import (
+    EvaluationsRequest,
+    EvaluationsResponse,
+    PageRequest,
+    PageResponse,
+    PDPMetadata,
+    SearchRequest,
+)
 from authzen_client.settings import Endpoints
 
 try:
@@ -19,10 +26,14 @@ except ImportError:
 else:
     _AUTH_ERRORS = (AuthlibBaseError,)
 
-type Endpoint = Literal["evaluation"]
+type Endpoint = Literal["evaluation", "evaluations", "subjects", "resources", "actions"]
 
 _METADATA_FIELDS = {
     "evaluation": "access_evaluation_endpoint",
+    "evaluations": "access_evaluations_endpoint",
+    "subjects": "search_subject_endpoint",
+    "resources": "search_resource_endpoint",
+    "actions": "search_action_endpoint",
 }
 
 
@@ -70,6 +81,47 @@ def _response_model[T: BaseModel](response: httpx2.Response, model: type[T]) -> 
         raise ProtocolError(
             "The PDP returned an invalid response.", response=response
         ) from exc
+
+
+def _batch_response(
+    response: httpx2.Response, request: EvaluationsRequest
+) -> EvaluationsResponse:
+    result = _response_model(response, EvaluationsResponse)
+    expected = len(request.evaluations)
+    if not expected:
+        valid = result.decision is not None
+    elif result.evaluations is None:
+        valid = False
+    elif request.options.evaluations_semantic == "execute_all":
+        valid = len(result.evaluations) == expected
+    else:
+        stop = request.options.evaluations_semantic == "permit_on_first_permit"
+        decisions = [entry.decision for entry in result.evaluations]
+        valid = (
+            0 < len(decisions) <= expected
+            and stop not in decisions[:-1]
+            and (len(decisions) == expected or decisions[-1] == stop)
+        )
+    if not valid:
+        raise ProtocolError(
+            "Batch results do not match the requested evaluations and semantics.",
+            response=response,
+        )
+    return result
+
+
+def _next_request[T: SearchRequest](
+    request: T, page: PageResponse | None, seen: set[str]
+) -> T | None:
+    if page is None or not page.next_token:
+        return None
+    if page.next_token in seen:
+        raise ProtocolError("The PDP repeated a pagination token.")
+    seen.add(page.next_token)
+    next_page = (request.page or PageRequest()).model_copy(
+        update={"token": page.next_token}
+    )
+    return request.model_copy(update={"page": next_page})
 
 
 class _ClientBase:
