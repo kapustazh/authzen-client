@@ -6,18 +6,16 @@ and authentication through HTTPX2 and Authlib.
 
 ## Installation
 
-Requires Python 3.12+. Install from a checkout in your application's environment.
+Requires Python 3.12+. The package is on [PyPI](https://pypi.org/project/authzen-client/).
 
 ```bash
-git clone https://github.com/kapustazh/authzen-client.git
-cd authzen-client
-python -m pip install .
+python -m pip install authzen-client
 ```
 
-For OAuth Client Credentials, install the optional integration.
+OAuth Client Credentials needs the optional extra.
 
 ```bash
-python -m pip install '.[oauth]'
+python -m pip install 'authzen-client[oauth]'
 ```
 
 ## Quickstart

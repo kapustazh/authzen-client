@@ -25,10 +25,10 @@ in an evaluation request.
 
 ## OAuth Client Credentials
 
-Install the OAuth extra from the checkout.
+Install the OAuth extra.
 
 ```bash
-python -m pip install '.[oauth]'
+python -m pip install 'authzen-client[oauth]'
 ```
 
 Authlib provides synchronous and asynchronous OAuth clients compatible with HTTPX2.

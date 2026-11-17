@@ -26,7 +26,7 @@ integration and workload-specific performance still require verification.
 
 ```bash
 uv build
-python -m pip install dist/authzen_client-0.2.0-py3-none-any.whl
+python -m pip install dist/authzen_client-0.2.1-py3-none-any.whl
 ```
 
 The source distribution includes the documentation, examples, tests and JSON
