@@ -29,10 +29,10 @@ alice: decision=True
 bob: decision=False
 ```
 
-The client is used as follows. HTTPX MockTransport connects it to the Stub-PDP.
+The client is used as follows. HTTPX2 MockTransport connects it to the Stub-PDP.
 
 ```python
-import httpx
+import httpx2
 
 from authzen_client import (
     Action,
@@ -51,7 +51,7 @@ request = EvaluationRequest(
 
 with AuthZENClient(
     base_url="https://pdp.example.com",
-    transport=httpx.MockTransport(stub_pdp),
+    transport=httpx2.MockTransport(stub_pdp),
 ) as client:
     client.discover()
     response = client.evaluate(request)
@@ -77,16 +77,19 @@ is optional when the PDP uses the default path, /access/v1/evaluation.
 
 ### Authentication
 
-Use headers for Bearer tokens and API keys, or auth for an HTTPX auth object.
-The OAuth Client Credentials example uses httpx-auth and prints True.
+Use headers for Bearer tokens and API keys, or auth for an HTTPX2 auth object.
+For OAuth Client Credentials, install the oauth extra and pass an Authlib
+OAuth2Client or AsyncOAuth2Client through http_client. The caller owns its lifecycle.
+
+The examples read AUTHZEN_PDP_URL, AUTHZEN_TOKEN_URL, AUTHZEN_CLIENT_ID and
+AUTHZEN_CLIENT_SECRET from environment variables. AUTHZEN_SCOPE is optional.
+Use an HTTPS token endpoint and fetch the initial token before evaluating.
 
 ```bash
 uv sync --extra oauth
 uv run --extra oauth python examples/oauth.py
+uv run --extra oauth python examples/async_oauth.py
 ```
-
-OAuth token requests are synchronous and require an HTTPS endpoint. Opaque token
-responses must include expires_in.
 
 ### Development
 

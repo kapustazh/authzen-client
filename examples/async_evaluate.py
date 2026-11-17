@@ -2,7 +2,7 @@
 
 import asyncio
 
-import httpx
+import httpx2
 from evaluate import stub_pdp
 
 from authzen_client import (
@@ -18,7 +18,7 @@ async def main() -> None:
     """Print an allow and a deny decision using the asynchronous client."""
     async with AsyncAuthZENClient(
         base_url="https://pdp.example.com",
-        transport=httpx.MockTransport(stub_pdp),
+        transport=httpx2.MockTransport(stub_pdp),
     ) as client:
         await client.discover()
         for subject_id in ("alice", "bob"):

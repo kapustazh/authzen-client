@@ -1,6 +1,6 @@
 """Run the client against an in-process Stub-PDP."""
 
-import httpx
+import httpx2
 
 from authzen_client import (
     Action,
@@ -11,13 +11,13 @@ from authzen_client import (
 )
 
 
-def stub_pdp(request: httpx.Request) -> httpx.Response:
+def stub_pdp(request: httpx2.Request) -> httpx2.Response:
     """Allow Alice to read document 123 using a fixed demonstration policy."""
     if (
         request.method == "GET"
         and request.url.path == "/.well-known/authzen-configuration"
     ):
-        return httpx.Response(
+        return httpx2.Response(
             200,
             json={
                 "policy_decision_point": "https://pdp.example.com",
@@ -28,7 +28,7 @@ def stub_pdp(request: httpx.Request) -> httpx.Response:
         )
 
     if request.method != "POST" or request.url.path != "/access/v1/evaluation":
-        return httpx.Response(404, text="Unknown endpoint")
+        return httpx2.Response(404, text="Unknown endpoint")
 
     evaluation = EvaluationRequest.model_validate_json(request.content)
     allowed = (
@@ -38,14 +38,14 @@ def stub_pdp(request: httpx.Request) -> httpx.Response:
         and evaluation.resource.type == "document"
         and evaluation.resource.id == "123"
     )
-    return httpx.Response(200, json={"decision": allowed})
+    return httpx2.Response(200, json={"decision": allowed})
 
 
 def main() -> None:
     """Print an allow and a deny decision from the Stub-PDP."""
     with AuthZENClient(
         base_url="https://pdp.example.com",
-        transport=httpx.MockTransport(stub_pdp),
+        transport=httpx2.MockTransport(stub_pdp),
     ) as client:
         client.discover()
         for subject_id in ("alice", "bob"):
