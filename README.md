@@ -97,7 +97,7 @@ uv run --extra oauth python -m examples.async_oauth
 uv run pytest
 uv run ruff check src tests examples
 uv run ruff format --check src tests examples
-uv run mypy src tests examples
+uv run ty check
 ```
 
 ### Build

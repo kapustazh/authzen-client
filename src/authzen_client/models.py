@@ -110,7 +110,9 @@ class EvaluationsOptions(BaseModel):
 
     model_config = {**_JSON_CONFIG, "extra": "allow"}
     # Pydantic requires this narrower annotation to validate extra JSON values.
-    __pydantic_extra__: dict[str, JsonValue] = Field(init=False)
+    __pydantic_extra__: dict[str, JsonValue] = Field(  # ty: ignore[incompatible-mutable-override]
+        init=False
+    )
 
     evaluations_semantic: Literal[
         "execute_all", "deny_on_first_deny", "permit_on_first_permit"
