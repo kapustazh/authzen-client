@@ -67,13 +67,6 @@ bob: access denied
 - [Migrating from 0.1](docs/migration.md)
 - [Development and builds](docs/development.md)
 
-Preview the documentation locally.
-
-```bash
-uv sync --group docs
-uv run --group docs zensical serve
-```
-
 ## License
 
 [MIT](LICENSE).

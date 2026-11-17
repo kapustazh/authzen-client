@@ -10,8 +10,6 @@ from pydantic import BaseModel, ValidationError
 
 from authzen_client.exceptions import ProtocolError, TransportError
 from authzen_client.models import (
-    EvaluationsRequest,
-    EvaluationsResponse,
     PageRequest,
     PageResponse,
     PDPMetadata,
@@ -35,6 +33,16 @@ _METADATA_FIELDS = {
     "resources": "search_resource_endpoint",
     "actions": "search_action_endpoint",
 }
+
+
+def _with_base(base: httpx2.URL, value: str) -> str:
+    """Join an endpoint onto the PDP base, keeping a base path such as /tenant."""
+    if httpx2.URL(value).is_absolute_url:
+        return value
+    prefix = str(base)
+    if not prefix.endswith("/"):
+        prefix += "/"
+    return prefix + value.lstrip("/")
 
 
 def _base_url(value: str) -> httpx2.URL:
@@ -83,31 +91,51 @@ def _response_model[T: BaseModel](response: httpx2.Response, model: type[T]) -> 
         ) from exc
 
 
-def _batch_response(
-    response: httpx2.Response, request: EvaluationsRequest
-) -> EvaluationsResponse:
-    result = _response_model(response, EvaluationsResponse)
-    expected = len(request.evaluations)
-    if not expected:
-        valid = result.decision is not None
-    elif result.evaluations is None:
-        valid = False
-    elif request.options.evaluations_semantic == "execute_all":
-        valid = len(result.evaluations) == expected
-    else:
-        stop = request.options.evaluations_semantic == "permit_on_first_permit"
-        decisions = [entry.decision for entry in result.evaluations]
-        valid = (
-            0 < len(decisions) <= expected
-            and stop not in decisions[:-1]
-            and (len(decisions) == expected or decisions[-1] == stop)
+class _Omitted:
+    """Constructor argument the caller did not pass."""
+
+
+_OMITTED = _Omitted()
+
+
+def _timeout(
+    value: httpx2.Timeout | float | None | _Omitted,
+) -> httpx2.Timeout | float | None:
+    if isinstance(value, _Omitted):
+        return 5.0
+    return value
+
+
+def _reject_borrowed_settings(
+    *,
+    auth: object | None,
+    transport: object | None,
+    limits: object | None,
+    timeout: object,
+) -> None:
+    """Name each setting that must be configured on a caller-owned HTTP client."""
+    conflicts: list[str] = []
+    if auth is not None:
+        conflicts.append("auth")
+    if transport is not None:
+        conflicts.append("transport")
+    if limits is not None:
+        conflicts.append("limits")
+    if not isinstance(timeout, _Omitted):
+        conflicts.append("timeout")
+    if conflicts:
+        raise ValueError(
+            f"Configure {', '.join(conflicts)} on the supplied http_client."
         )
-    if not valid:
-        raise ProtocolError(
-            "Batch results do not match the requested evaluations and semantics.",
-            response=response,
-        )
-    return result
+
+
+def _page_state[T: SearchRequest](request: T) -> tuple[T, set[str]]:
+    """Copy a search and record its token so later pages cannot mutate or loop."""
+    seen: set[str] = set()
+    token = None if request.page is None else request.page.token
+    if token is not None and token != "":
+        seen.add(token)
+    return request.model_copy(deep=True), seen
 
 
 def _next_request[T: SearchRequest](
@@ -133,19 +161,22 @@ class _ClientBase:
     ) -> None:
         self._base = _base_url(base_url)
         self._pdp_identifier = base_url
-        self._endpoints = endpoints or Endpoints()
+        self._endpoints = endpoints if endpoints is not None else Endpoints()
         self.metadata: PDPMetadata | None = None
         self._headers = httpx2.Headers(headers)
         self._headers.setdefault("Accept", "application/json")
-        self._headers["Content-Type"] = "application/json"
+
+    def _body_headers(self) -> httpx2.Headers:
+        """JSON content type for requests that send a body."""
+        headers = self._headers.copy()
+        headers["Content-Type"] = "application/json"
+        return headers
 
     def _url(self, endpoint: Endpoint) -> str:
         advertised = getattr(self.metadata, _METADATA_FIELDS[endpoint], None)
-        value = str(advertised or getattr(self._endpoints, endpoint))
-        if httpx2.URL(value).is_absolute_url:
-            return str(value)
-        base = str(self._base)
-        return base + value.lstrip("/") if base.endswith("/") else base + value
+        fallback = getattr(self._endpoints, endpoint)
+        chosen = advertised if advertised is not None else fallback
+        return _with_base(self._base, str(chosen))
 
     def _metadata_url(self) -> str:
         url = urlsplit(self._pdp_identifier)

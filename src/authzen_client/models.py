@@ -12,17 +12,18 @@ from pydantic import (
     ConfigDict,
     Field,
     HttpUrl,
-    JsonValue,
     RootModel,
+    TypeAdapter,
     ValidationInfo,
     field_validator,
     model_validator,
 )
 
-from authzen_client.types import JsonObject
+from authzen_client.types import JsonObject, JsonValue
 
 _JSON_CONFIG = ConfigDict(strict=True, allow_inf_nan=False)
 _MODEL_CONFIG: ConfigDict = {**_JSON_CONFIG, "extra": "ignore"}
+_JSON_VALUE = TypeAdapter(JsonValue, config=_JSON_CONFIG)
 
 
 class Context(RootModel[JsonObject]):
@@ -106,17 +107,19 @@ class Evaluation(BaseModel):
 
 
 class EvaluationsOptions(BaseModel):
-    """Batch execution semantics and additional JSON options for the PDP."""
+    """Batch execution semantics. Additional JSON options are kept."""
 
     model_config = {**_JSON_CONFIG, "extra": "allow"}
-    # Pydantic requires this narrower annotation to validate extra JSON values.
-    __pydantic_extra__: dict[str, JsonValue] = Field(  # ty: ignore[incompatible-mutable-override]
-        init=False
-    )
 
     evaluations_semantic: Literal[
         "execute_all", "deny_on_first_deny", "permit_on_first_permit"
     ] = "execute_all"
+
+    @model_validator(mode="after")
+    def extra_options_are_json(self) -> Self:
+        for value in (self.__pydantic_extra__ or {}).values():
+            _JSON_VALUE.validate_python(value)
+        return self
 
 
 class EvaluationsRequest(Evaluation):

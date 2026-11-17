@@ -42,11 +42,10 @@ options = EvaluationsOptions(evaluations_semantic="deny_on_first_deny")
 ```
 
 The supported semantics are execute_all, deny_on_first_deny and
-permit_on_first_permit. Execute all is the default. Short-circuit responses may
-contain only the evaluated prefix of the requests.
+permit_on_first_permit. Execute all is the default. A PDP may return only the
+evaluated prefix. The client returns that response as sent.
 
-Results preserve request order. The client validates their count and compatibility
-with the selected semantics. Additional PDP options can be passed through
+Results preserve request order. Additional PDP options can be passed through
 EvaluationsOptions.model_validate with JSON-compatible extra fields.
 
 An empty or omitted evaluations array uses the protocol's single-evaluation

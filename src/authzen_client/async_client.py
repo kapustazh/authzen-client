@@ -8,12 +8,16 @@ import httpx2
 from pydantic import BaseModel
 
 from authzen_client._client import (
+    _OMITTED,
     Endpoint,
-    _batch_response,
     _ClientBase,
     _next_request,
+    _Omitted,
+    _page_state,
+    _reject_borrowed_settings,
     _request_errors,
     _response_model,
+    _timeout,
 )
 from authzen_client.models import (
     Action,
@@ -42,13 +46,13 @@ class AsyncAuthZENClient(_ClientBase):
     Args:
         base_url: HTTPS PDP identifier. A path prefix is preserved.
         auth: HTTPX2 authentication object.
-        headers: Additional headers. Content-Type is enforced as JSON.
+        headers: Additional headers. POST requests send JSON.
         transport: HTTPX2 transport for testing or custom connections.
         timeout: Network-operation timeout, or None to disable timeouts.
         limits: Connection pool limits for the owned HTTP client.
         endpoints: Fallback paths or HTTPS URLs, overridden by discovery.
-        http_client: Caller-owned HTTPX2 client, including Authlib clients.
-            Configure its transport and authentication on that client.
+        http_client: HTTPX2 client you created, including an Authlib client.
+            You close it. Set its transport and authentication on that client.
     """
 
     def __init__(
@@ -58,38 +62,32 @@ class AsyncAuthZENClient(_ClientBase):
         auth: httpx2.Auth | None = None,
         headers: Mapping[str, str] | None = None,
         transport: httpx2.AsyncBaseTransport | None = None,
-        timeout: httpx2.Timeout | float | None = 5.0,
+        timeout: httpx2.Timeout | float | None | _Omitted = _OMITTED,
         limits: httpx2.Limits | None = None,
         endpoints: Endpoints | None = None,
         http_client: httpx2.AsyncClient | None = None,
     ) -> None:
         super().__init__(base_url, headers, endpoints)
-        if http_client is not None and (
-            auth is not None
-            or transport is not None
-            or limits is not None
-            or timeout != 5.0
-        ):
-            raise ValueError(
-                "Configure auth, transport, timeout and limits on the supplied http_client."
+        if http_client is not None:
+            _reject_borrowed_settings(
+                auth=auth, transport=transport, limits=limits, timeout=timeout
             )
-        self._owns_http = http_client is None
-        self._http = (
-            http_client
-            if http_client is not None
-            else httpx2.AsyncClient(
-                auth=auth,
-                transport=transport,
-                timeout=timeout,
-                limits=limits if limits is not None else httpx2.Limits(),
-            )
+            self._owns_http = False
+            self._http = http_client
+            return
+        self._owns_http = True
+        self._http = httpx2.AsyncClient(
+            auth=auth,
+            transport=transport,
+            timeout=_timeout(timeout),
+            limits=limits if limits is not None else httpx2.Limits(),
         )
 
     async def _post(self, endpoint: Endpoint, request: BaseModel) -> httpx2.Response:
         with _request_errors():
             return await self._http.post(
                 self._url(endpoint),
-                headers=self._headers,
+                headers=self._body_headers(),
                 json=request.model_dump(mode="json", exclude_defaults=True),
             )
 
@@ -106,9 +104,10 @@ class AsyncAuthZENClient(_ClientBase):
         )
 
     async def evaluate_batch(self, request: EvaluationsRequest) -> EvaluationsResponse:
-        """Return ordered batch decisions using the requested execution semantics."""
-        response = await self._post("evaluations", request)
-        return _batch_response(response, request)
+        """Return the batch response from the PDP."""
+        return _response_model(
+            await self._post("evaluations", request), EvaluationsResponse
+        )
 
     async def search_resources(
         self, request: ResourceSearchRequest
@@ -139,9 +138,8 @@ class AsyncAuthZENClient(_ClientBase):
         request: T,
         search: Callable[[T], Awaitable[SearchResponse[R]]],
     ) -> AsyncIterator[R]:
-        current: T | None = request.model_copy(deep=True)
-        token = request.page.token if request.page is not None else None
-        seen = {token} if token is not None and token != "" else set()
+        current: T | None
+        current, seen = _page_state(request)
         while current is not None:
             response = await search(current)
             for result in response.results:
@@ -161,7 +159,7 @@ class AsyncAuthZENClient(_ClientBase):
         return self._iterate(request, self.search_actions)
 
     async def aclose(self) -> None:
-        """Close the owned HTTP client. Borrowed clients remain caller-owned."""
+        """Close the HTTP client this library opened. A passed http_client stays open."""
         if self._owns_http:
             await self._http.aclose()
 

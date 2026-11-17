@@ -35,14 +35,14 @@ async with AsyncAuthZENClient(base_url="https://pdp.example.com") as client:
 The application controls task scheduling and concurrency. For several independent
 requests, it can use asyncio.gather and an appropriate concurrency limit.
 
-## Client ownership
+## Your own HTTP connection
 
-By default, the SDK creates and owns its HTTPX2 client. Exiting with or async with
-closes it. Explicit close and aclose methods are also available.
+A normal client does not pass http_client. The library opens the connection and
+closes it at the end of the with block.
 
-An injected http_client belongs to the caller. Keep it open while using the SDK
-and close it in the outer application context. This supports Authlib clients and
-custom TLS or proxy configuration.
+Pass http_client when you already have an HTTPX2 client. The OAuth guide does
+this with an Authlib client that gets the access token. The library sends the
+access check through that connection and does not close it. You close it.
 
 ```python
 import httpx2
@@ -53,5 +53,5 @@ with httpx2.Client() as http:
         response = client.evaluate(request)
 ```
 
-Configure authentication, transport, timeout and connection limits on an injected
-HTTP client. The SDK rejects conflicting constructor settings.
+Set authentication, transport, timeout, and connection limits on http. The
+library rejects those arguments when http_client is set.

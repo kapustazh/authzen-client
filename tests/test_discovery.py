@@ -39,6 +39,7 @@ def test_discovery_selects_endpoint(
     def handler(request: httpx2.Request) -> httpx2.Response:
         calls.append(request.method)
         if request.method == "GET":
+            assert "content-type" not in request.headers
             assert str(request.url) == (
                 "https://pdp.example.com/.well-known/authzen-configuration" + path
             )

@@ -5,14 +5,12 @@ from pydantic import ValidationError
 
 from authzen_client import (
     Action,
-    ActionSearchRequest,
     EvaluationRequest,
     EvaluationsRequest,
     PageRequest,
     Resource,
     ResourceSearchRequest,
     Subject,
-    SubjectSearchRequest,
 )
 from authzen_client.types import JsonObject
 
@@ -22,7 +20,6 @@ DOCUMENTS = {
     "456": "Deployment checklist",
     "789": "API guide",
 }
-DEMO_SUBJECT = Subject(type="user", id="alice", properties={"email": DEMO_EMAIL})
 
 
 def make_request(
@@ -77,8 +74,6 @@ def stub_pdp(request: httpx2.Request) -> httpx2.Response:
                 "access_evaluation_endpoint": base + "/access/v1/evaluation",
                 "access_evaluations_endpoint": base + "/access/v1/evaluations",
                 "search_resource_endpoint": base + "/access/v1/search/resource",
-                "search_subject_endpoint": base + "/access/v1/search/subject",
-                "search_action_endpoint": base + "/access/v1/search/action",
             },
         )
     if request.method != "POST":
@@ -110,13 +105,9 @@ def stub_pdp(request: httpx2.Request) -> httpx2.Response:
                 values = defaults | entry.model_dump(
                     exclude_none=True, exclude_unset=True
                 )
-                decision = allowed(EvaluationRequest.model_validate(values))
-                decisions.append({"decision": decision})
-                semantic = batch.options.evaluations_semantic
-                if (semantic == "deny_on_first_deny" and not decision) or (
-                    semantic == "permit_on_first_permit" and decision
-                ):
-                    break
+                decisions.append(
+                    {"decision": allowed(EvaluationRequest.model_validate(values))}
+                )
             return httpx2.Response(200, json={"evaluations": decisions})
         if path == "/access/v1/search/resource":
             resource_query = ResourceSearchRequest.model_validate_json(request.content)
@@ -133,35 +124,6 @@ def stub_pdp(request: httpx2.Request) -> httpx2.Response:
                 )
             ]
             return _page(results, resource_query.page)
-        if path == "/access/v1/search/subject":
-            subject_query = SubjectSearchRequest.model_validate_json(request.content)
-            results = (
-                [DEMO_SUBJECT.model_dump(mode="json")]
-                if subject_query.subject.type == "user"
-                and allowed(
-                    EvaluationRequest(
-                        subject=DEMO_SUBJECT,
-                        action=subject_query.action,
-                        resource=subject_query.resource,
-                    )
-                )
-                else []
-            )
-            return _page(results, subject_query.page)
-        if path == "/access/v1/search/action":
-            action_query = ActionSearchRequest.model_validate_json(request.content)
-            action_results: list[JsonObject] = (
-                [{"name": "read"}]
-                if allowed(
-                    EvaluationRequest(
-                        subject=action_query.subject,
-                        action=Action(name="read"),
-                        resource=action_query.resource,
-                    )
-                )
-                else []
-            )
-            return _page(action_results, action_query.page)
     except (ValidationError, ValueError):
         return httpx2.Response(400, text="Invalid AuthZEN request")
     return httpx2.Response(404, text="Unknown endpoint")

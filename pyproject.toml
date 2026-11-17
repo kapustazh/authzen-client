@@ -32,9 +32,6 @@ dev = [
     "ty>=0.0.105",
     "types-authlib>=1.8.0.20261106",
 ]
-docs = [
-    "zensical>=0.1.1,<0.2",
-]
 
 [tool.setuptools.packages.find]
 where = ["src"]

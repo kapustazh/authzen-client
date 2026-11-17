@@ -103,6 +103,11 @@ def test_invalid_extension_values(
         model.model_validate(payload)
 
 
+def test_batch_options_reject_non_json() -> None:
+    with pytest.raises(ValidationError):
+        EvaluationsOptions.model_validate({"custom": {1}})
+
+
 def test_batch_preserves_defaults_overrides_and_empty_context() -> None:
     def handler(request: httpx2.Request) -> httpx2.Response:
         assert request.url.path == "/tenant/access/v1/evaluations"
@@ -133,45 +138,6 @@ def test_batch_preserves_defaults_overrides_and_empty_context() -> None:
         transport=httpx2.MockTransport(handler),
     ) as client:
         assert client.evaluate_batch(request).evaluations is not None
-
-
-@pytest.mark.parametrize(
-    "semantic,decisions,valid",
-    [
-        ("execute_all", [True, False], True),
-        ("execute_all", [True], False),
-        ("deny_on_first_deny", [False], True),
-        ("deny_on_first_deny", [True], False),
-        ("deny_on_first_deny", [False, True], False),
-        ("permit_on_first_permit", [True], True),
-        ("permit_on_first_permit", [False, True], True),
-        ("permit_on_first_permit", [], False),
-        ("permit_on_first_permit", [False, False, True], False),
-    ],
-)
-def test_batch_execution_semantics(
-    semantic: str, decisions: list[bool], valid: bool
-) -> None:
-    request = EvaluationsRequest(
-        subject=SUBJECT,
-        action=ACTION,
-        resource=RESOURCE,
-        evaluations=[Evaluation(), Evaluation()],
-        options=EvaluationsOptions.model_validate({"evaluations_semantic": semantic}),
-    )
-    transport = httpx2.MockTransport(
-        lambda r: httpx2.Response(
-            200, json={"evaluations": [{"decision": d} for d in decisions]}
-        )
-    )
-    with AuthZENClient(
-        base_url="https://pdp.example.com", transport=transport
-    ) as client:
-        if valid:
-            assert client.evaluate_batch(request).evaluations is not None
-        else:
-            with pytest.raises(ProtocolError):
-                client.evaluate_batch(request)
 
 
 def test_batch_empty_array_uses_single_decision() -> None:
@@ -372,9 +338,9 @@ async def test_async_batch_and_all_search_iterators() -> None:
 def test_external_client_configuration_is_explicit() -> None:
     with (
         httpx2.Client() as http,
-        pytest.raises(ValueError, match="supplied http_client"),
+        pytest.raises(ValueError, match="timeout"),
     ):
-        AuthZENClient(base_url="https://pdp.example.com", http_client=http, timeout=2)
+        AuthZENClient(base_url="https://pdp.example.com", http_client=http, timeout=5.0)
 
 
 @pytest.mark.parametrize(
