@@ -1,26 +1,51 @@
 # authzen-client
 
-## Description
+A typed Python SDK for the [AuthZEN Authorization API](https://openid.net/specs/authorization-api-1_0.html).
+Supports sync and async evaluation, batch requests, paginated search, discovery,
+and authentication through HTTPX2 and Authlib.
 
-A typed Python client for the [AuthZEN Authorization API](https://openid.net/specs/authorization-api-1_0.html).
-Ask a PDP whether a subject can perform an action on a resource. Supports sync
-and async evaluation, discovery, and authentication.
+## Installation
 
-## Instructions
-
-Requires Python 3.12+ and [uv](https://docs.astral.sh/uv/getting-started/installation/).
+Requires Python 3.12+. Install from a checkout in your application's environment.
 
 ```bash
 git clone https://github.com/kapustazh/authzen-client.git
 cd authzen-client
-uv sync
+python -m pip install .
 ```
 
-### Example usage
-
-From the repository root, run the example against the bundled Stub-PDP.
+For OAuth Client Credentials, install the optional integration.
 
 ```bash
+python -m pip install '.[oauth]'
+```
+
+## Quickstart
+
+Pass the PDP's HTTPS base URL and apply its decision in your application.
+
+```python
+from authzen_client import Action, AuthZENClient, EvaluationRequest, Resource, Subject
+
+request = EvaluationRequest(
+    subject=Subject(type="user", id="alice"),
+    action=Action(name="read"),
+    resource=Resource(type="document", id="123"),
+)
+
+with AuthZENClient(base_url="https://pdp.example.com") as client:
+    response = client.evaluate(request)
+
+if response.decision:
+    print("Access granted")
+else:
+    print("Access denied")
+```
+
+Run the bundled document-service example against an in-process PDP.
+
+```bash
+uv sync
 uv run python -m examples.evaluate
 ```
 
@@ -29,90 +54,26 @@ alice: AuthZEN project notes
 bob: access denied
 ```
 
-The client is used as follows. HTTPX2 MockTransport connects it to the Stub-PDP.
+## Documentation
 
-```python
-import httpx2
+- [Quickstart and runnable examples](docs/quickstart.md)
+- [Sync and async clients](docs/clients.md)
+- [Batch evaluations](docs/batch.md)
+- [Search and pagination](docs/search.md)
+- [Authentication](docs/authentication.md)
+- [Configuration and discovery](docs/configuration.md)
+- [Errors](docs/errors.md)
+- [API reference](docs/api.md)
+- [Migrating from 0.1](docs/migration.md)
+- [Development and builds](docs/development.md)
 
-from authzen_client import (
-    Action,
-    AuthZENClient,
-    EvaluationRequest,
-    Resource,
-    Subject,
-)
-from examples.evaluate import stub_pdp
-
-request = EvaluationRequest(
-    subject=Subject(type="user", id="alice"),
-    action=Action(name="read"),
-    resource=Resource(type="document", id="123"),
-)
-
-with AuthZENClient(
-    base_url="https://pdp.example.com",
-    transport=httpx2.MockTransport(stub_pdp),
-) as client:
-    client.discover()
-    response = client.evaluate(request)
-
-print(response.decision)  # True
-```
-
-For a real PDP, supply its HTTPS base_url and omit transport.
-
-A denial returns decision=False. Network failures raise TransportError, while
-HTTP errors and invalid responses raise ProtocolError.
-
-### Async usage
-
-Use AsyncAuthZENClient with async with, and await its methods.
+Preview the documentation locally.
 
 ```bash
-uv run python -m examples.async_evaluate
+uv sync --group docs
+uv run --group docs zensical serve
 ```
-
-Both clients support discover() to load the PDP evaluation endpoint. This step
-is optional when the PDP uses the default path, /access/v1/evaluation.
-
-### Authentication
-
-Use headers for Bearer tokens and API keys, or auth for an HTTPX2 auth object.
-For OAuth Client Credentials, install the oauth extra and pass an Authlib
-OAuth2Client or AsyncOAuth2Client through http_client. The caller owns its lifecycle.
-
-The examples read AUTHZEN_PDP_URL, AUTHZEN_TOKEN_URL, AUTHZEN_CLIENT_ID and
-AUTHZEN_CLIENT_SECRET from environment variables. AUTHZEN_SCOPE is optional.
-Use an HTTPS token endpoint and fetch the initial token before evaluating.
-
-```bash
-uv sync --extra oauth
-uv run --extra oauth python -m examples.oauth
-uv run --extra oauth python -m examples.async_oauth
-```
-
-### Development
-
-```bash
-uv run pytest
-uv run ruff check src tests examples
-uv run ruff format --check src tests examples
-uv run ty check
-```
-
-### Build
-
-Build the wheel and source distribution into dist/.
-
-```bash
-uv build
-```
-
-### Development notes
-
-I spent approximately 4–5 hours on the task. With more time, I would add batch
-evaluations and paginated search.
 
 ## License
 
-This project is licensed under the MIT License. See [LICENSE](LICENSE).
+[MIT](LICENSE).

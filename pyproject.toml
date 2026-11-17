@@ -8,6 +8,7 @@ version = "0.2.0"
 description = "A typed Python client for the AuthZEN Authorization API."
 readme = "README.md"
 requires-python = ">=3.12"
+license = "MIT"
 dependencies = [
     "httpx2>=2.16.2,<3",
     "pydantic>=2,<3",
@@ -18,6 +19,11 @@ oauth = [
     "authlib>=1.9.8,<2",
 ]
 
+[project.urls]
+Repository = "https://github.com/kapustazh/authzen-client"
+Documentation = "https://github.com/kapustazh/authzen-client/tree/main/docs"
+Issues = "https://github.com/kapustazh/authzen-client/issues"
+
 [dependency-groups]
 dev = [
     "authlib>=1.9.8,<2",
@@ -25,6 +31,9 @@ dev = [
     "ruff>=0.15,<1",
     "ty>=0.0.105",
     "types-authlib>=1.8.0.20261106",
+]
+docs = [
+    "zensical>=0.1.1,<0.2",
 ]
 
 [tool.setuptools.packages.find]
