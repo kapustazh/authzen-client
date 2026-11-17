@@ -2,20 +2,13 @@
 
 ## Install
 
-Python 3.12+ is required. Clone the repository and install it in your application's
-virtual environment.
+Python 3.12+ is required.
 
 ```bash
-git clone https://github.com/kapustazh/authzen-client.git
-cd authzen-client
-python -m pip install .
+python -m pip install authzen-client
 ```
 
-You can also install an existing checkout by its local path.
-
-```bash
-python -m pip install /path/to/authzen-client
-```
+OAuth Client Credentials needs the optional extra: `python -m pip install 'authzen-client[oauth]'`.
 
 ## Request a decision
 
