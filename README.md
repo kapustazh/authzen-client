@@ -21,12 +21,12 @@ uv sync
 From the repository root, run the example against the bundled Stub-PDP.
 
 ```bash
-uv run python examples/evaluate.py
+uv run python -m examples.evaluate
 ```
 
 ```text
-alice: decision=True
-bob: decision=False
+alice: AuthZEN project notes
+bob: access denied
 ```
 
 The client is used as follows. HTTPX2 MockTransport connects it to the Stub-PDP.
@@ -69,7 +69,7 @@ HTTP errors and invalid responses raise ProtocolError.
 Use AsyncAuthZENClient with async with, and await its methods.
 
 ```bash
-uv run python examples/async_evaluate.py
+uv run python -m examples.async_evaluate
 ```
 
 Both clients support discover() to load the PDP evaluation endpoint. This step
@@ -87,8 +87,8 @@ Use an HTTPS token endpoint and fetch the initial token before evaluating.
 
 ```bash
 uv sync --extra oauth
-uv run --extra oauth python examples/oauth.py
-uv run --extra oauth python examples/async_oauth.py
+uv run --extra oauth python -m examples.oauth
+uv run --extra oauth python -m examples.async_oauth
 ```
 
 ### Development

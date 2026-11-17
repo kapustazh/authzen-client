@@ -1,34 +1,23 @@
-"""Run asynchronous evaluations against the bundled Stub-PDP."""
+"""Evaluate document access concurrently using the asynchronous client."""
 
 import asyncio
 
 import httpx2
-from evaluate import stub_pdp
 
-from authzen_client import (
-    Action,
-    AsyncAuthZENClient,
-    EvaluationRequest,
-    Resource,
-    Subject,
-)
+from authzen_client import AsyncAuthZENClient
+from examples.stub_pdp import make_request, stub_pdp
 
 
 async def main() -> None:
-    """Print an allow and a deny decision using the asynchronous client."""
     async with AsyncAuthZENClient(
-        base_url="https://pdp.example.com",
-        transport=httpx2.MockTransport(stub_pdp),
+        base_url="https://pdp.example.com", transport=httpx2.MockTransport(stub_pdp)
     ) as client:
         await client.discover()
-        for subject_id in ("alice", "bob"):
-            request = EvaluationRequest(
-                subject=Subject(type="user", id=subject_id),
-                action=Action(name="read"),
-                resource=Resource(type="document", id="123"),
-            )
-            response = await client.evaluate(request)
-            print(f"{subject_id}: decision={response.decision}")
+        results = await asyncio.gather(
+            *(client.evaluate(make_request(user)) for user in ("alice", "bob"))
+        )
+        for user, result in zip(("alice", "bob"), results, strict=True):
+            print(f"{user}: decision={result.decision}")
 
 
 if __name__ == "__main__":
