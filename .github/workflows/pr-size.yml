@@ -1,0 +1,36 @@
+name: pr-size
+
+on: pull_request
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-size-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pr-size:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check pull request size
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+          MAX_LINES_CHANGED: 200
+        run: |
+          total=0
+          while read -r added deleted _; do
+            if [ "$added" = "-" ] || [ "$deleted" = "-" ]; then
+              continue
+            fi
+            total=$((total + added + deleted))
+          done < <(git diff --numstat "$BASE" "$HEAD" -- . ':(exclude)uv.lock')
+          echo "Total lines changed, excluding uv.lock: ${total}"
+          if [ "$total" -gt "$MAX_LINES_CHANGED" ]; then
+            echo "Pull request changes ${total} lines, exceeding the ${MAX_LINES_CHANGED}-line limit. Split it."
+            exit 1
+          fi

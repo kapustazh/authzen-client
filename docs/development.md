@@ -50,3 +50,7 @@ Configure that environment and the PyPI project before the first release.
 
 Develop changes on a separate branch and submit them through a pull request.
 Run the local checks before requesting review.
+
+`.github/workflows/pr-size.yml` fails a pull request that changes more than 200
+lines, counting additions and deletions. `uv.lock` is excluded. A push still
+succeeds.
